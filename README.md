@@ -1,415 +1,190 @@
-# TaskFlow API
+# TaskFlow API — Module 4: Dockerize & Deploy
 
-TaskFlow API is a simple RESTful task management backend developed using Spring Boot.
+This project is part of the **NTU SCTP Advanced Professional Certificate in AI Engineering — Module 4 DevOps** assignment.
 
-This project was completed as part of the **NTU SCTP Advanced Professional Certificate in AI Engineering – Module 3 Backend Development** assignment.
+It extends the TaskFlow REST API developed in Module 3 by packaging it as a Docker image and deploying it to Railway.
 
-The application demonstrates core backend development concepts including layered architecture, REST API development, dependency injection, Spring Data JPA, object-relational mapping, and persistence using an H2 in-memory database.
+## Live Application
 
----
+**Task API:** https://sctp-aie-assignment-mod04-production.up.railway.app/api/tasks
 
-## Features
+**GitHub repository:** https://github.com/NorRaihanH/sctp-aie-assignment-mod04
 
-The API supports the following operations:
+The application is a backend API, so the task endpoint returns JSON rather than a web page.
 
-- Create a new task
-- Retrieve all tasks
-- Retrieve a task by ID
-- Store task data using Spring Data JPA
-- Automatically generate task IDs
-- Persist task data using an H2 in-memory database
+## Assignment Status
 
----
+The baseline assignment is complete: the application has been containerised and deployed to Railway, and the deployed task endpoint has been verified.
+
+| Task | Status |
+|---|---|
+| Create a multi-stage Dockerfile | Completed |
+| Build and test the Docker image locally | Completed |
+| Push the project to GitHub | Completed |
+| Deploy the application to Railway | Completed |
+| Verify the live API and capture deployment screenshots | Completed |
 
 ## Technology Stack
 
-- Java 21
-- Spring Boot 3.x
-- Spring Web
-- Spring Data JPA
-- Hibernate
-- H2 Database
-- Lombok
-- Maven
+| Component | Technology |
+|---|---|
+| Language | Java 21 |
+| Application framework | Spring Boot 4.1.1 |
+| REST API | Spring Web MVC |
+| Data access | Spring Data JPA / Hibernate |
+| Database | H2 in-memory database |
+| Build tool | Maven |
+| Containerisation | Docker with a multi-stage build |
+| Source-code hosting | GitHub |
+| Application hosting | Railway |
 
----
+## Docker Configuration
 
-## Application Architecture
+The Dockerfile uses two stages:
 
-The application follows a layered architecture:
+1. **Build stage:** Maven and JDK 21 compile and package the application inside Docker. A locally generated `target/` directory is not required.
+2. **Runtime stage:** Only the packaged JAR is copied into a Java 21 JRE image. Maven and the source code from the build stage are not copied into the final image.
 
-```text
-Client
-   |
-   v
-Controller
-   |
-   v
-Service
-   |
-   v
-Repository
-   |
-   v
-H2 Database
+```dockerfile
+# Stage 1: Build the JAR with Maven
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY . .
+RUN mvn clean package -DskipTests
+
+# Stage 2: Run the JAR in a slim runtime image
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+EXPOSE 8080
+CMD ["java", "-jar", "app.jar"]
 ```
 
-### Controller Layer
+`CMD` defines the default application startup command. `EXPOSE 8080` documents the application port; the local `-p` option and Railway networking configuration make that port accessible.
 
-The controller handles incoming HTTP requests and returns HTTP responses.
+The Docker build currently skips test execution with `-DskipTests`. A successful image build is therefore not evidence that automated tests have passed.
 
-```java
-@RestController
-@RequestMapping("/api/tasks")
-public class TaskController {
-    ...
-}
-```
-
-### Service Layer
-
-The service layer contains the application logic and communicates with the repository.
-
-Constructor injection is used to provide the required dependencies.
-
-```java
-public TaskService(TaskRepository taskRepository) {
-    this.taskRepository = taskRepository;
-}
-```
-
-When a Spring-managed class has only one constructor, `@Autowired` is not required on that constructor.
-
-### Repository Layer
-
-The repository uses Spring Data JPA for database access.
-
-```java
-public interface TaskRepository extends JpaRepository<Task, Long> {
-}
-```
-
-By extending `JpaRepository`, common persistence operations are provided automatically, including:
-
-```text
-findAll()
-findById()
-save()
-```
-
-### Entity Layer
-
-The `Task` class is a JPA entity mapped to the `tasks` database table.
-
-Each task contains:
-
-- `id`
-- `title`
-- `description`
-- `priority`
-- `dueDate`
-- `completed`
-
-The primary key is automatically generated using JPA.
-
----
-
-## REST API Endpoints
-
-| HTTP Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/tasks` | Retrieve all tasks |
-| `GET` | `/api/tasks/{id}` | Retrieve a task by ID |
-| `POST` | `/api/tasks` | Create a new task |
-
----
-
-## Create a Task
-
-### Endpoint
-
-```http
-POST /api/tasks
-```
-
-### Example Request
-
-```json
-{
-  "title": "Complete Module 3",
-  "description": "Finish assignment",
-  "priority": "HIGH",
-  "dueDate": "2026-05-20",
-  "completed": false
-}
-```
-
-### Example Response
-
-```json
-{
-  "id": 1,
-  "title": "Complete Module 3",
-  "description": "Finish assignment",
-  "priority": "HIGH",
-  "dueDate": "2026-05-20",
-  "completed": false
-}
-```
-
-A successfully created task returns:
-
-```text
-HTTP 201 Created
-```
-
-### Postman Test
-
-The following screenshot shows a task being created using Postman.
-
-![Postman API Test](docs/02%20postman.png)
-
-The API successfully returns an HTTP **201 Created** response together with the newly created task.
-
----
-
-## Retrieve All Tasks
-
-### Endpoint
-
-```http
-GET /api/tasks
-```
-
-### Example cURL Request
-
-```bash
-curl http://localhost:8080/api/tasks
-```
-
-The API returns a JSON array containing all tasks currently stored in the H2 database.
-
-Example:
-
-```json
-[
-  {
-    "id": 1,
-    "title": "Complete Module 3",
-    "description": "Finish assignment",
-    "priority": "HIGH",
-    "dueDate": "2026-05-20",
-    "completed": false
-  }
-]
-```
-
-### cURL Test
-
-The following screenshot shows the REST API being tested from the command line using cURL.
-
-![cURL API Test](docs/01%20curl.png)
-
----
-
-## Retrieve a Task by ID
-
-### Endpoint
-
-```http
-GET /api/tasks/{id}
-```
-
-### Example
-
-```bash
-curl http://localhost:8080/api/tasks/1
-```
-
-Example response:
-![cURL API Test](docs/04%20postman%20getOneTask202.png)
-
----
-
-If the requested task cannot be found, the service throws a runtime exception indicating that the task does not exist.
-
-Example response:
-![cURL API Test](docs/05%20postman%20getOneTaskNotfound.png)
-
----
-
-## H2 Database
-
-The application uses an **H2 in-memory relational database**.
-
-The database configuration is defined in:
-
-```text
-src/main/resources/application.properties
-```
-
-Because the application uses:
-
-```text
-jdbc:h2:mem:taskflowdb
-```
-
-the database is stored in memory and its data is reset when the application stops.
-
----
-
-## Project Structure
-
-```text
-taskflow-api/
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/
-│   │   │       └── taskflow/
-│   │   │           └── taskflow_api/
-│   │   │               ├── controller/
-│   │   │               │   └── TaskController.java
-│   │   │               ├── entity/
-│   │   │               │   └── Task.java
-│   │   │               ├── repository/
-│   │   │               │   └── TaskRepository.java
-│   │   │               ├── service/
-│   │   │               │   └── TaskService.java
-│   │   │               └── TaskflowApiApplication.java
-│   │   │
-│   │   └── resources/
-│   │       └── application.properties
-│   │
-│   └── test/
-│
-├── docs/
-│   ├── 01 curl.png
-│   └── 02 postman.png
-│   └── 03 postman allTasks.png
-│   └── 04 postman getOneTask202.png
-│   └── 05 postman getOneTaskNotfound.png
-│
-├── pom.xml
-└── README.md
-```
-
----
-
-## Running the Application
+## Build and Run Locally
 
 ### Prerequisites
 
-Ensure the following are installed:
+- Git
+- Docker installed and running
 
-- Java 21
-- Maven
+Java and Maven do not need to be installed locally for this Docker-based build.
 
-Check the Java version:
-
-```bash
-java --version
-```
-
-Check the Maven version:
+### Clone the repository
 
 ```bash
-mvn --version
+git clone https://github.com/NorRaihanH/sctp-aie-assignment-mod04.git
+cd sctp-aie-assignment-mod04
 ```
 
-### Run the Application
-
-From the project root directory:
+### Build the image
 
 ```bash
-mvn spring-boot:run
+docker build -t taskflow:latest .
 ```
 
-Once started, the application is available at:
-
-```text
-http://localhost:8080
-```
-
-The Task API is available at:
-
-```text
-http://localhost:8080/api/tasks
-```
-
----
-
-## Example cURL Commands
-
-### Create a Task
+### Start the container
 
 ```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Complete Module 3",
-    "description": "Finish assignment",
-    "priority": "HIGH",
-    "dueDate": "2026-05-20",
-    "completed": false
-  }'
+docker run --name taskflow -p 8080:8080 taskflow:latest
 ```
 
-### Retrieve All Tasks
+Open another terminal and test the API:
 
 ```bash
 curl http://localhost:8080/api/tasks
 ```
 
-### Retrieve Task by ID
+On Windows PowerShell, use `curl.exe` if `curl` resolves to a PowerShell alias.
+
+To stop and remove the local container:
 
 ```bash
-curl http://localhost:8080/api/tasks/1
+docker stop taskflow
+docker rm taskflow
 ```
 
----
+## Railway Deployment
 
-## Key Concepts Demonstrated
+The baseline deployment uses the GitHub repository as the source for Railway. Railway builds the application using the root Dockerfile and runs the resulting container.
 
-This project demonstrates several Java and Spring Boot concepts covered in Module 3:
+Deployment steps:
 
-- RESTful API development
-- Layered architecture
-- Spring Boot
-- Spring MVC
-- `@RestController`
-- `@RequestMapping`
-- `@GetMapping`
-- `@PostMapping`
-- `@RequestBody`
-- `@PathVariable`
-- `ResponseEntity`
-- Dependency Injection
-- Constructor Injection
-- Inversion of Control
-- JPA Entities
-- `@Entity`
-- `@Id`
-- `@GeneratedValue`
-- Spring Data JPA
-- `JpaRepository`
-- Object-Relational Mapping
-- H2 Database
-- JSON request and response handling
-- HTTP status codes
-- Maven dependency management
+1. Push the application source and Dockerfile to GitHub.
+2. Create a Railway project and select the GitHub repository.
+3. Deploy the service using the Dockerfile.
+4. Generate a public domain and configure its target port as `8080`.
+5. Verify the deployed `/api/tasks` endpoint.
 
----
+### Active deployment
+
+![Railway dashboard showing the application deployment](docs/01_railway_dashboard.png)
+
+### Live API verification
+
+The following screenshot shows the deployed API returning task data as JSON.
+
+![Live Railway TaskFlow API returning tasks](docs/01_railway_taskflowapi_alltasks.png)
+
+To call the deployed endpoint:
+
+```bash
+curl https://sctp-aie-assignment-mod04-production.up.railway.app/api/tasks
+```
+
+An empty JSON array (`[]`) is also a valid response when no tasks exist.
+
+## API Endpoints
+
+| Method | Endpoint | Description | Successful response |
+|---|---|---|---|
+| GET | `/api/tasks` | Retrieve all tasks | `200 OK` |
+| GET | `/api/tasks/{id}` | Retrieve a task by ID | `200 OK` |
+| POST | `/api/tasks` | Create a task | `201 Created` |
+
+A lookup for a task ID that does not exist returns `404 Not Found`.
+
+### Create a task
+
+Send a `POST` request to the live `/api/tasks` endpoint using Postman, with `Content-Type: application/json` and this raw JSON body:
+
+```json
+{
+  "title": "Complete Module 4",
+  "description": "Finish assignment",
+  "priority": "HIGH",
+  "dueDate": "2026-10-29",
+  "completed": false
+}
+```
+
+The API returns the created task with its generated `id`. Use that returned ID when testing `GET /api/tasks/{id}`.
+
+## Data Persistence and Limitations
+
+The application uses the H2 in-memory database configured in `src/main/resources/application.properties`:
+
+```properties
+spring.datasource.url=jdbc:h2:mem:taskflowdb
+```
+
+Task data is temporary and is lost when the application process restarts, including during a redeployment. The records shown in the screenshot may therefore differ from the current live response. No external persistent database is configured for this baseline.
+
+## Stretch Goals
+
+**Planned:** Implement a CircleCI pipeline connected to GitHub to build, test, and publish the application image to Docker Hub.
+
+CircleCI integration and Docker Hub publication are not part of the completed baseline documented here. Pipeline links, image links, and results will be added after implementation.
+
+## Errors and Troubleshooting
+
+The baseline deployment is complete. No specific error history is recorded in this README. Any subsequent deployment or pipeline failures and their resolutions will be documented as the project progresses.
 
 ## Author
 
-**Raihan**
-
----
-
-## Assignment
-
-**NTU SCTP Advanced Professional Certificate in AI Engineering**  
-**Module 3 – Backend Development**
-
-This repository contains the completed TaskFlow API assignment.
+**Raihan**  
+NTU SCTP Advanced Professional Certificate in AI Engineering  
+Module 4 — DevOps
